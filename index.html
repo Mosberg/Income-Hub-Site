@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Income Hub</title>
+<style>
+:root{--bg:#f7f7f4;--card:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#dcdcd5;--accent:#1f5f4a;--accent-ink:#fff;--pos:#2e7d32;--neg:#c62828;--warn:#8a5a00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--card:#1e1e1c;--ink:#ecece6;--mute:#9a9a92;--line:#34342f;--accent:#6fc3a3;--accent-ink:#0e1a15;--pos:#7bd88f;--neg:#ff8a80;--warn:#f0c36d}}
+:root[data-theme="dark"]{--bg:#141413;--card:#1e1e1c;--ink:#ecece6;--mute:#9a9a92;--line:#34342f;--accent:#6fc3a3;--accent-ink:#0e1a15;--pos:#7bd88f;--neg:#ff8a80;--warn:#f0c36d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:1}
+main{max-width:1000px;margin:0 auto;padding:12px 16px 48px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+nav button{white-space:nowrap}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.on,button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+textarea{min-height:130px}
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi b{display:block;font-size:20px}.kpi span{color:var(--mute);font-size:12px}
+.tablewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+th{color:var(--mute);font-weight:600;font-size:12px}
+tr.sel{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+tbody tr{cursor:pointer}
+td.n,th.n{text-align:right}
+.mute{color:var(--mute);font-size:13px}.warn{color:var(--warn)}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.check{display:flex;gap:8px;align-items:flex-start;margin:6px 0}.check input{width:auto;margin-top:4px}
+#banner{display:none;background:var(--warn);color:#000;padding:8px 16px;text-align:center}
+section[hidden]{display:none}
+svg text{fill:var(--mute);font-size:11px}
+</style>
+</head>
+<body>
+<div id="banner">Your browser is blocking saved data (private mode?). Changes will be lost. Use Settings, Export backup often.</div>
+<header>
+  <h1>Income Hub</h1>
+  <span class="mute">Tracker for 9 income pipelines. Data stays in this browser.</span>
+  <button id="theme" aria-label="Toggle theme">Theme</button>
+</header>
+<nav id="nav"></nav>
+<main>
+<section id="t-dash"></section>
+<section id="t-ledger" hidden></section>
+<section id="t-tasks" hidden></section>
+<section id="t-leads" hidden></section>
+<section id="t-pipes" hidden></section>
+<section id="t-checks" hidden></section>
+<section id="t-prompts" hidden></section>
+<section id="t-settings" hidden></section>
+<p class="mute">This site does not connect to PayPal, Gmail or any platform and has no server: nothing you enter is sent anywhere. It records what you log and gives no tax or legal advice.</p>
+</main>
+<script>
+"use strict";
+const PIPES={"digital-product-newsletter":"Digital products + newsletter","ai-admin-automation-service":"AI admin automation service","freelance-ai-gigs":"Freelance AI gigs","newsletter-monetization":"Newsletter monetization","kdp-ebook-publishing":"KDP ebooks","etsy-pod-digital-downloads":"Etsy / POD / downloads","micro-saas-api":"Micro-SaaS / API","content-affiliate-site":"Content / affiliate site (high risk)","faceless-video-channel":"Faceless video (high risk)"};
+const KEYS=Object.keys(PIPES);
+const STATUSES=["idea","setting up","live","paused","stopped"];
+const TASK_STATES=["draft","needs approval","approved","published","dropped"];
+const SHARED=["I read and approved everything before it went public","No unsolicited marketing email/SMS (opt-in or inbound only)","AI use disclosed where the platform or law requires","Affiliate links labeled as advertising ('Reklamelink')","Sales, fees and expenses logged in the ledger","Platform policy re-checked this month","Tax / VAT treatment confirmed with Skattestyrelsen or an accountant"];
+const EXTRA={"digital-product-newsletter":["Withdrawal-right wording for digital downloads verified","Delivery email tested end to end","Lead magnet shared in a community that allows it"],"ai-admin-automation-service":["Written scope and price agreed before any work","Data processing agreement in place if personal data is touched","Any public-facing bot tells people it is AI"],"freelance-ai-gigs":["Platform AI-work policy re-read","Profile claims match what I can really deliver","No off-platform deals that breach the terms"],"newsletter-monetization":["Every subscriber opted in; unsubscribe works","Sponsorships and affiliate links disclosed"],"kdp-ebook-publishing":["Current KDP AI-disclosure rules checked before publishing","Every factual claim verified","No copied text or look-alike titles"],"etsy-pod-digital-downloads":["Items are my own original work (no brands or characters)","AI use disclosed in the listing as required"],"micro-saas-api":["Terms and privacy policy published","No secrets in code; minimal personal data stored","VAT handling for sales decided"],"content-affiliate-site":["Page is genuinely useful and based on first-hand experience","No bulk-generated pages","Privacy and cookie notices in place"],"faceless-video-channel":["Platform monetization/AI-content rules re-read","No copyrighted music, footage or voices","Sponsorships and affiliate links disclosed"]};
+const ROUTINES={"Set up this pipeline":"Use the {skill} skill. Set up this pipeline for me step by step. Ask me for anything only I can do (identity checks, account creation, approvals) and do everything else yourself.","Draft this week's content":"Use the {skill} skill. Draft this week's content and save it for my approval. Do not publish or send anything.","Process new sales / orders":"Use the {skill} skill. Check for new payments, deliver anything owed, and add the rows to my ledger. Flag refunds, disputes and anything unusual instead of acting on it.","Monthly review":"Use the {skill} skill. Run my monthly review: income, fees, hours, what worked, what to stop, and a policy re-check. Be honest if results are zero.","Compliance check":"Use the {skill} skill. Run the compliance checklist on my current work and list anything that needs fixing before I publish. Verify any rule you cite against the official source.","90-day decision":"Use the {skill} skill. Review my 90 days against the kill rule and tell me plainly whether to continue, change one thing, or stop."};
+const TABS=[["dash","Dashboard"],["ledger","Ledger"],["tasks","Tasks & approvals"],["leads","Leads"],["pipes","Pipelines"],["checks","Checklists"],["prompts","Prompts for Claude"],["settings","Settings"]];
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const validDate=s=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const[y,m,d]=s.split("-").map(Number);const t=new Date(y,m-1,d);return t.getFullYear()===y&&t.getMonth()===m-1&&t.getDate()===d};
+const toNum=s=>{s=String(s).trim().replace(",",".");if(s==="")return 0;const n=Number(s);if(!isFinite(n))throw new Error("not a number");return n};
+const fmt=n=>Math.round(n).toLocaleString("en-US");
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const addDays=(s,n)=>{const d=new Date(s+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+
+const KEY="incomeHub.v1";
+function fresh(){const pipe={};KEYS.forEach(k=>pipe[k]={status:"idea",started:"",review:"",kill:"Stop or change if no sales/clients after 90 days of steady effort."});return{ledger:[],tasks:[],leads:[],hours:[],pipe,checks:{},settings:{currency:"DKK",vat:"50000",status:"undecided"}}}
+function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&typeof r==="object"){const f=fresh();return{...f,...r,pipe:{...f.pipe,...r.pipe},settings:{...f.settings,...r.settings}}}}catch(e){}return fresh()}
+let S=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){$("#banner").style.display="block"}}
+function persist(){save();renderCurrent()}
+
+/* ---------- navigation ---------- */
+let current="dash";
+const renderers={};
+function show(t){current=t;TABS.forEach(([k])=>{$("#t-"+k).hidden=k!==t});[...$("#nav").children].forEach(b=>b.classList.toggle("on",b.dataset.t===t));renderers[t]&&renderers[t]()}
+function renderCurrent(){renderers[current]&&renderers[current]()}
+$("#nav").innerHTML=TABS.map(([k,l])=>`<button data-t="${k}">${esc(l)}</button>`).join("");
+$("#nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b)show(b.dataset.t)});
+$("#theme").onclick=()=>{const r=document.documentElement;const dark=getComputedStyle(r).getPropertyValue("--bg").trim()==="#141413";r.dataset.theme=dark?"light":"dark";try{localStorage.setItem("incomeHub.theme",r.dataset.theme)}catch(e){}};
+try{const t=localStorage.getItem("incomeHub.theme");if(t)document.documentElement.dataset.theme=t}catch(e){}
+
+/* ---------- generic table + form ---------- */
+function crud(root,name,fields,sortFn){
+  let sel=null;
+  const el=$(root);
+  el.innerHTML=`<div class="tablewrap"><table><thead><tr>${fields.map(f=>`<th class="${f.type==="num"?"n":""}">${esc(f.label)}</th>`).join("")}</tr></thead><tbody></tbody></table></div>
+  <form class="card" novalidate><div class="grid">${fields.map(f=>`<div><label for="${name}-${f.k}">${esc(f.label)}</label>${f.type==="choice"?`<select id="${name}-${f.k}">${f.opts.map(o=>`<option value="${esc(o)}">${esc(f.labels?f.labels[o]:o)}</option>`).join("")}</select>`:`<input id="${name}-${f.k}" autocomplete="off">`}</div>`).join("")}</div>
+  <div class="row"><button class="primary" data-a="add">Add</button><button data-a="upd">Update selected</button><button data-a="del">Delete selected</button><button data-a="clr">Clear</button></div><div class="mute" id="${name}-msg" role="status"></div></form>`;
+  const body=el.querySelector("tbody"),msg=el.querySelector("#"+name+"-msg");
+  const inp=f=>el.querySelector("#"+name+"-"+f.k);
+  function defaults(){fields.forEach(f=>{inp(f).value=f.type==="date"?todayStr():f.type==="choice"?f.opts[0]:""});sel=null;msg.textContent="";draw()}
+  function read(){const o={};for(const f of fields){const v=inp(f).value.trim();if(f.type==="date"){if(v&&!validDate(v))throw new Error(f.label+": use YYYY-MM-DD");o[f.k]=v}else if(f.type==="num"){try{o[f.k]=toNum(v)}catch(e){throw new Error(f.label+": enter a number")}}else o[f.k]=v}return o}
+  function draw(){const rows=[...S[name]].sort(sortFn);body.innerHTML=rows.map(r=>`<tr data-id="${esc(r.id)}" class="${r.id===sel?"sel":""}">${fields.map(f=>`<td class="${f.type==="num"?"n":""}">${esc(f.type==="choice"&&f.labels?f.labels[r[f.k]]||r[f.k]:r[f.k])}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${fields.length}" class="mute">Nothing yet.</td></tr>`}
+  body.addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(!tr)return;sel=tr.dataset.id;const r=S[name].find(x=>x.id===sel);fields.forEach(f=>inp(f).value=r[f.k]??"");draw()});
+  el.querySelector("form").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;e.preventDefault();const a=b.dataset.a;
+    try{
+      if(a==="add"){S[name].push({id:uid(),...read()});persist();defaults()}
+      else if(a==="upd"){if(!sel){msg.textContent="Select a row first.";return}const r=S[name].find(x=>x.id===sel);Object.assign(r,read());persist();defaults()}
+      else if(a==="del"){if(!sel){msg.textContent="Select a row first.";return}if(confirm("Delete the selected row?")){S[name]=S[name].filter(x=>x.id!==sel);persist();defaults()}}
+      else defaults();
+    }catch(err){msg.textContent=err.message}});
+  defaults();
+  return{draw};
+}
+const pf=()=>({k:"pipeline",label:"Pipeline",type:"choice",opts:KEYS,labels:PIPES});
+const ledger=crud("#t-ledger","ledger",[{k:"day",label:"Date",type:"date"},pf(),{k:"kind",label:"Type",type:"choice",opts:["income","expense"]},{k:"description",label:"Description",type:"text"},{k:"gross",label:"Amount (gross)",type:"num"},{k:"fees",label:"Platform fees (income only)",type:"num"},{k:"country",label:"Buyer country",type:"text"}],(a,b)=>b.day.localeCompare(a.day));
+const tasks=crud("#t-tasks","tasks",[{k:"due",label:"Due",type:"date"},pf(),{k:"title",label:"Task / content item",type:"text"},{k:"state",label:"State",type:"choice",opts:TASK_STATES},{k:"notes",label:"Notes",type:"text"}],(a,b)=>a.due.localeCompare(b.due));
+const leads=crud("#t-leads","leads",[{k:"name",label:"Name / business",type:"text"},{k:"contact",label:"Contact",type:"text"},{k:"stage",label:"Stage",type:"choice",opts:["new","talking","proposal sent","won","lost"]},{k:"value",label:"Value",type:"num"},{k:"next",label:"Next step",type:"text"},{k:"nextDate",label:"Next step date",type:"date"}],(a,b)=>a.nextDate.localeCompare(b.nextDate));
+renderers.ledger=()=>ledger.draw();renderers.tasks=()=>tasks.draw();renderers.leads=()=>leads.draw();
+
+/* ---------- dashboard ---------- */
+function stats(rows){const inc=rows.filter(r=>r.kind==="income"),exp=rows.filter(r=>r.kind==="expense");const i=inc.reduce((a,r)=>a+r.gross,0),f=inc.reduce((a,r)=>a+r.fees,0),c=exp.reduce((a,r)=>a+r.gross,0);return{i,f,c,net:i-f-c}}
+renderers.dash=()=>{
+  const cur=S.settings.currency,all=stats(S.ledger),hrs=S.hours.reduce((a,h)=>a+h.hours,0);
+  const since=addDays(todayStr(),-365),t12=S.ledger.filter(r=>r.kind==="income"&&r.day>=since).reduce((a,r)=>a+r.gross,0);
+  let thr=Number(String(S.settings.vat).replace(",","."))||0;const pct=thr?Math.min(100,t12/thr*100):0;
+  const months=[];let d=new Date();d.setDate(1);for(let n=0;n<6;n++){months.unshift(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));d.setMonth(d.getMonth()-1)}
+  const nets=months.map(m=>[m,stats(S.ledger.filter(r=>r.day.startsWith(m))).net]);
+  const top=Math.max(1,...nets.map(n=>Math.abs(n[1])));const W=600,H=170,mid=H/2-6,slot=(W-20)/6;
+  const bars=nets.map(([m,v],i)=>{const x=10+i*slot+slot*.2,w=slot*.6,h=Math.abs(v)/top*(mid-20),y=v>=0?mid-h:mid;return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${v>=0?"var(--pos)":"var(--neg)"}"/><text x="${x+w/2}" y="${H-6}" text-anchor="middle">${esc(m)}</text><text x="${x+w/2}" y="${v>=0?y-4:y+h+12}" text-anchor="middle">${esc(fmt(v))}</text>`}).join("");
+  const due=KEYS.filter(k=>{const p=S.pipe[k];return p.review&&p.review<=todayStr()&&["setting up","live"].includes(p.status)});
+  const rows=KEYS.map(k=>{const s=stats(S.ledger.filter(r=>r.pipeline===k)),h=S.hours.filter(x=>x.pipeline===k).reduce((a,x)=>a+x.hours,0),p=S.pipe[k];return`<tr><td>${esc(PIPES[k])}</td><td>${esc(p.status)}</td><td class="n">${fmt(s.i)}</td><td class="n">${fmt(s.f)}</td><td class="n">${fmt(s.c)}</td><td class="n">${fmt(s.net)}</td><td class="n">${+h.toFixed(2)}</td><td>${esc(p.review||"-")}${due.includes(k)?' <b class="warn">(due)</b>':""}</td></tr>`}).join("");
+  $("#t-dash").innerHTML=`<div class="kpis">
+   <div class="kpi"><b>${fmt(all.i)}</b><span>Income (${esc(cur)})</span></div><div class="kpi"><b>${fmt(all.f)}</b><span>Fees</span></div><div class="kpi"><b>${fmt(all.c)}</b><span>Costs</span></div><div class="kpi"><b>${fmt(all.net)}</b><span>Net</span></div><div class="kpi"><b>${+hrs.toFixed(2)}</b><span>Hours logged</span></div><div class="kpi"><b>${hrs?fmt(all.net/hrs):"n/a"}</b><span>Net per hour</span></div></div>
+   <div class="card"><div>Income, last 12 months: <b>${fmt(t12)}</b> of ${fmt(thr)} ${esc(cur)} (${Math.round(pct)}%) of your VAT-threshold setting.${pct>=80?' <span class="warn">Approaching: talk to Skattestyrelsen or an accountant.</span>':""}</div><div class="bar" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><div class="mute">Confirm the current threshold and what counts at skat.dk.</div></div>
+   ${due.length?`<div class="card warn">90-day review due: ${due.map(k=>esc(PIPES[k])).join(", ")}. Check results against your stop rule.</div>`:""}
+   <div class="tablewrap"><table><thead><tr><th>Pipeline</th><th>Status</th><th class="n">Income</th><th class="n">Fees</th><th class="n">Costs</th><th class="n">Net</th><th class="n">Hours</th><th>Review</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="card"><b>Net per month, last 6 months</b><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Net per month bar chart"><line x1="10" x2="${W-10}" y1="${mid}" y2="${mid}" stroke="var(--line)"/>${bars}</svg></div>
+   <p class="mute">Numbers come only from what you log. Zero is a normal early result.</p>`;
+};
+
+/* ---------- pipelines ---------- */
+let pipeSel=KEYS[0];
+renderers.pipes=()=>{
+  const p=S.pipe[pipeSel],hs=S.hours.filter(h=>h.pipeline===pipeSel).sort((a,b)=>b.day.localeCompare(a.day)).slice(0,50);
+  $("#t-pipes").innerHTML=`<div class="card"><label for="pp">Pipeline</label><select id="pp">${KEYS.map(k=>`<option value="${k}" ${k===pipeSel?"selected":""}>${esc(PIPES[k])}</option>`).join("")}</select>
+  <div class="grid" style="margin-top:10px"><div><label for="ps">Status</label><select id="ps">${STATUSES.map(s=>`<option ${s===p.status?"selected":""}>${s}</option>`).join("")}</select></div><div><label for="pst">Started</label><input id="pst" value="${esc(p.started)}" placeholder="YYYY-MM-DD"></div><div><label for="prv">90-day review date</label><input id="prv" value="${esc(p.review)}" placeholder="YYYY-MM-DD"></div></div>
+  <div style="margin-top:10px"><label for="pk">Stop / change rule</label><input id="pk" value="${esc(p.kill)}"></div>
+  <div class="row"><button class="primary" id="psave">Save</button><button id="p90">Set review = started + 90 days</button></div><div class="mute" id="pmsg" role="status"></div></div>
+  <div class="card"><b>Log hours</b><div class="grid" style="margin-top:8px"><div><label for="hd">Date</label><input id="hd" value="${todayStr()}"></div><div><label for="hh">Hours</label><input id="hh"></div><div><label for="hn">Note</label><input id="hn"></div></div><div class="row"><button class="primary" id="hadd">Add hours</button></div></div>
+  <div class="tablewrap"><table><thead><tr><th>Date</th><th class="n">Hours</th><th>Note</th></tr></thead><tbody>${hs.map(h=>`<tr><td>${esc(h.day)}</td><td class="n">${+h.hours.toFixed(2)}</td><td>${esc(h.note)}</td></tr>`).join("")||'<tr><td colspan="3" class="mute">No hours logged.</td></tr>'}</tbody></table></div>`;
+  const msg=t=>$("#pmsg").textContent=t;
+  $("#pp").onchange=e=>{pipeSel=e.target.value;renderers.pipes()};
+  $("#p90").onclick=()=>{const s=$("#pst").value.trim()||todayStr();if(!validDate(s))return msg("Started: use YYYY-MM-DD");$("#pst").value=s;$("#prv").value=addDays(s,90)};
+  $("#psave").onclick=()=>{const s=$("#pst").value.trim(),r=$("#prv").value.trim();if((s&&!validDate(s))||(r&&!validDate(r)))return msg("Dates must be YYYY-MM-DD");S.pipe[pipeSel]={status:$("#ps").value,started:s,review:r,kill:$("#pk").value};save();msg("Saved.")};
+  $("#hadd").onclick=()=>{const d=$("#hd").value.trim();let h;try{h=toNum($("#hh").value)}catch(e){h=-1}if(!validDate(d)||h<=0)return msg("Use a YYYY-MM-DD date and hours above 0.");S.hours.push({id:uid(),day:d,pipeline:pipeSel,hours:h,note:$("#hn").value});persist()};
+};
+
+/* ---------- checklists ---------- */
+let chkSel=KEYS[0];
+renderers.checks=()=>{
+  const items=SHARED.concat(EXTRA[chkSel]||[]);
+  $("#t-checks").innerHTML=`<div class="card"><label for="cp">Pipeline</label><select id="cp">${KEYS.map(k=>`<option value="${k}" ${k===chkSel?"selected":""}>${esc(PIPES[k])}</option>`).join("")}</select>
+  ${items.map((it,i)=>`<label class="check" style="color:var(--ink);font-size:15px"><input type="checkbox" data-i="${i}" ${S.checks[chkSel+"|"+it]?"checked":""}><span>${esc(it)}</span></label>`).join("")}
+  <div class="row"><button id="creset">Reset this checklist</button></div></div>`;
+  $("#cp").onchange=e=>{chkSel=e.target.value;renderers.checks()};
+  $("#t-checks").onchange=e=>{const c=e.target.closest("input[type=checkbox]");if(!c)return;const k=chkSel+"|"+items[+c.dataset.i];if(c.checked)S.checks[k]=true;else delete S.checks[k];save()};
+  $("#creset").onclick=()=>{items.forEach(it=>delete S.checks[chkSel+"|"+it]);save();renderers.checks()};
+};
+
+/* ---------- prompts ---------- */
+let prP=KEYS[0],prR=Object.keys(ROUTINES)[0];
+renderers.prompts=()=>{
+  $("#t-prompts").innerHTML=`<div class="card"><div class="grid"><div><label for="rp">Pipeline</label><select id="rp">${KEYS.map(k=>`<option value="${k}" ${k===prP?"selected":""}>${esc(PIPES[k])}</option>`).join("")}</select></div><div><label for="rr">Routine</label><select id="rr">${Object.keys(ROUTINES).map(r=>`<option ${r===prR?"selected":""}>${esc(r)}</option>`).join("")}</select></div></div>
+  <label for="rt" style="margin-top:10px">Prompt</label><textarea id="rt"></textarea><div class="row"><button class="primary" id="rc">Copy to clipboard</button><span class="mute" id="rm" role="status"></span></div>
+  <p class="mute">Paste into Claude with the matching skills installed. Claude can use its own connected tools (Gmail, PayPal, Drive/Sheets, Calendar); this site cannot.</p></div>`;
+  const build=()=>{$("#rt").value=ROUTINES[prR].replace("{skill}",prP)};build();
+  $("#rp").onchange=e=>{prP=e.target.value;build()};$("#rr").onchange=e=>{prR=e.target.value;build()};
+  $("#rc").onclick=async()=>{const t=$("#rt").value;try{await navigator.clipboard.writeText(t);$("#rm").textContent="Copied."}catch(e){$("#rt").select();$("#rm").textContent=document.execCommand&&document.execCommand("copy")?"Copied.":"Press Ctrl/Cmd+C to copy."}};
+};
+
+/* ---------- settings ---------- */
+function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+const csvCell=v=>{let s=String(v??"");if(/^[=+\-@\t\r]/.test(s))s="'"+s;return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function parseCSV(t){const rows=[];let r=[],c="",q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===","){r.push(c);c=""}else if(ch==="\n"||ch==="\r"){if(ch==="\r"&&t[i+1]==="\n")i++;r.push(c);rows.push(r);r=[];c=""}else c+=ch}if(c!==""||r.length){r.push(c);rows.push(r)}return rows}
+renderers.settings=()=>{
+  const s=S.settings;
+  $("#t-settings").innerHTML=`<div class="card"><div class="grid"><div><label for="sc">Currency label</label><input id="sc" value="${esc(s.currency)}"></div><div><label for="sv">VAT threshold (verify at skat.dk)</label><input id="sv" value="${esc(s.vat)}"></div><div><label for="ss">Tax status (your note)</label><select id="ss">${["undecided","hobby","sole proprietorship (CVR)"].map(o=>`<option ${o===s.status?"selected":""}>${o}</option>`).join("")}</select></div></div>
+  <div class="row"><button class="primary" id="sv-save">Save settings</button></div><div class="mute" id="smsg" role="status"></div></div>
+  <div class="card"><b>Backup &amp; data</b><p class="mute">Everything lives in this browser only. Clearing site data erases it, so export a backup regularly.</p>
+  <div class="row"><button id="xj">Export backup (JSON)</button><button type="button" id="ij">Import backup (JSON)</button><button id="xc">Export ledger (CSV)</button><button type="button" id="ic">Import ledger (CSV)</button><button id="wipe">Erase all data</button></div>
+  <input type="file" id="file" hidden></div>
+  <p class="mute">Hobby vs. business, VAT registration and deductions are decisions to confirm with Skattestyrelsen or an accountant.</p>`;
+  const msg=t=>$("#smsg").textContent=t,file=$("#file");
+  $("#sv-save").onclick=()=>{const v=$("#sv").value.trim();if(!isFinite(Number(v.replace(",","."))))return msg("VAT threshold must be a number.");S.settings={currency:$("#sc").value.trim()||"DKK",vat:v,status:$("#ss").value};save();msg("Saved.")};
+  $("#xj").onclick=()=>download("income-hub-backup-"+todayStr()+".json",JSON.stringify(S,null,2),"application/json");
+  $("#xc").onclick=()=>download("ledger-"+todayStr()+".csv",["day,pipeline,kind,description,gross,fees,country"].concat(S.ledger.map(r=>[r.day,r.pipeline,r.kind,r.description,r.gross,r.fees,r.country].map(csvCell).join(","))).join("\n"),"text/csv");
+  let mode="";
+  $("#ij").onclick=()=>{mode="json";file.accept=".json";file.value="";file.click()};
+  $("#ic").onclick=()=>{mode="csv";file.accept=".csv";file.value="";file.click()};
+  file.onchange=()=>{const f=file.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{
+    if(mode==="json"){const o=JSON.parse(rd.result);if(!o||typeof o!=="object"||!Array.isArray(o.ledger))throw new Error("Not an Income Hub backup.");if(!confirm("Replace ALL current data with this backup?"))return;const f0=fresh();S={...f0,...o,pipe:{...f0.pipe,...o.pipe},settings:{...f0.settings,...o.settings}};save();show("dash")}
+    else{const rows=parseCSV(String(rd.result)),h=rows.shift().map(x=>x.trim());let n=0,bad=0;for(const r of rows){if(r.length===1&&r[0]==="")continue;const o={};h.forEach((k,i)=>o[k]=r[i]);try{if(!validDate(o.day)||!["income","expense"].includes(o.kind))throw 0;S.ledger.push({id:uid(),day:o.day,pipeline:KEYS.includes(o.pipeline)?o.pipeline:KEYS[0],kind:o.kind,description:o.description||"",gross:toNum(o.gross||0),fees:toNum(o.fees||0),country:o.country||""});n++}catch(e){bad++}}save();msg(`Imported ${n} rows, skipped ${bad}.`)}
+  }catch(e){msg("Import failed: "+e.message)}};rd.readAsText(f)};
+  $("#wipe").onclick=()=>{if(confirm("Erase ALL data in this browser? Export a backup first.")){S=fresh();save();show("dash")}};
+};
+show("dash");
+</script>
+</body>
+</html>
